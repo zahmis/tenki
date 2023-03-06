@@ -1,0 +1,246 @@
+package main
+
+import (
+	"database/sql"
+	"encoding/json"
+	"fmt"
+	"io/ioutil"
+	"log"
+	"net/http"
+	"os"
+
+	_ "github.com/lib/pq"
+)
+
+func main() {
+	weatherApiToken := os.Getenv("WEATHER_API_TOKEN")
+
+	if weatherApiToken == "" {
+		log.Fatal("WEATHER_API_TOKEN is not set")
+		return
+	}
+
+    // OpenWeatherMap APIから天気情報を取得するためのURL
+    url := "http://api.openweathermap.org/data/2.5/weather?q=Tokyo&units=metric&appid=" + weatherApiToken
+
+    // HTTP GETリクエストを作成
+    req, err := http.NewRequest("GET", url, nil)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    // HTTP GETリクエストを送信
+    client := new(http.Client)
+    resp, err := client.Do(req)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    // HTTPレスポンスを読み込む
+    defer resp.Body.Close()
+    body, err := ioutil.ReadAll(resp.Body)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    // JSONをパース
+    var data map[string]interface{}
+    if err := json.Unmarshal(body, &data); err != nil {
+        log.Fatal(err)
+    }
+
+
+	// 天気情報を表示
+	fmt.Println("都市名:", data["name"])
+	fmt.Println("天気:", data["weather"].([]interface{})[0].(map[string]interface{})["main"])
+	fmt.Println("天気詳細:", data["weather"].([]interface{})[0].(map[string]interface{})["description"])
+	fmt.Println("最低気温:", data["main"].(map[string]interface{})["temp_min"])
+	fmt.Println("最高気温:", data["main"].(map[string]interface{})["temp_max"])
+	fmt.Println("湿度:", data["main"].(map[string]interface{})["humidity"])
+	fmt.Println("風速:", data["wind"].(map[string]interface{})["speed"])
+	fmt.Println("雲量:", data["clouds"].(map[string]interface{})["all"])
+	fmt.Println("国名:", data["sys"].(map[string]interface{})["country"])
+	fmt.Println("日の出:", data["sys"].(map[string]interface{})["sunrise"])
+	fmt.Println("日の入り:", data["sys"].(map[string]interface{})["sunset"])
+
+	type TotalInfo struct {
+		Name string `json:"name"`
+		Weather []struct {
+			Main string `json:"main"`
+			Description string `json:"description"`
+		} `json:"weather"`
+		Main struct {
+			Temp float64 `json:"temp"`
+			Pressure float64 `json:"pressure"`
+			Humidity float64 `json:"humidity"`
+			TempMin float64 `json:"temp_min"`
+			TempMax float64 `json:"temp_max"`
+		} `json:"main"`
+		Wind struct {
+			Speed float64 `json:"speed"`
+			Deg float64 `json:"deg"`
+		} `json:"wind"`
+		Clouds struct {
+			All float64 `json:"all"`
+		} `json:"clouds"`
+		Sys struct {
+			Country string `json:"country"`
+			Sunrise float64 `json:"sunrise"`
+			Sunset float64 `json:"sunset"`
+		} `json:"sys"`
+	}
+
+	type Weather struct {
+		Main string `json:"main"`
+		Description string `json:"description"`
+	}
+
+	type Main struct {
+		Temp float64 `json:"temp"`
+		Pressure float64 `json:"pressure"`
+		Humidity float64 `json:"humidity"`
+		TempMin float64 `json:"temp_min"`
+		TempMax float64 `json:"temp_max"`
+	}
+
+	type Wind struct {
+		Speed float64 `json:"speed"`
+		Deg float64 `json:"deg"`
+	}
+
+	type Clouds struct {
+		All float64 `json:"all"`
+	}
+
+	type Sys struct {
+		Country string `json:"country"`
+		Sunrise float64 `json:"sunrise"`
+		Sunset float64 `json:"sunset"`
+	}
+
+
+
+
+	//ユーザー名:パスワード@ホスト名:ポート番号/データベース名
+
+	connectStr := "user=sizmayosimaz dbname=tenki sslmode=disable"
+
+	db, err := sql.Open("postgres", connectStr)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
+
+	// テーブルを作成
+	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS totalInfo (
+		id SERIAL PRIMARY KEY,
+		name TEXT,
+		weather TEXT,
+		main TEXT,
+		wind TEXT,
+		clouds TEXT,
+		sys TEXT
+	)`); err != nil {
+		log.Fatal(err)
+	}
+
+	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS weather (
+		id SERIAL PRIMARY KEY,
+		main TEXT,
+		description TEXT
+	)`); err != nil {
+		log.Fatal(err)
+	}
+
+	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS main (
+		id SERIAL PRIMARY KEY,
+		temp TEXT,
+		pressure TEXT,
+		humidity TEXT,
+		temp_min TEXT,
+		temp_max TEXT
+	)`); err != nil {
+		log.Fatal(err)
+	}
+
+	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS wind (
+		id SERIAL PRIMARY KEY,
+		speed TEXT,
+		deg TEXT
+	)`); err != nil {
+		log.Fatal(err)
+	}
+
+	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS clouds (
+		id SERIAL PRIMARY KEY,
+		all TEXT
+	)`); err != nil {
+		log.Fatal(err)
+	}
+
+	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS sys (
+		id SERIAL PRIMARY KEY,
+		country TEXT,
+		sunrise TEXT,
+		sunset TEXT
+	)`); err != nil {
+		log.Fatal(err)
+	}
+
+
+
+	// データを挿入
+	if _, err := db.Exec(`INSERT INTO weather (name, weather, main, wind, clouds, sys) VALUES ($1, $2, $3, $4, $5, $6)`,
+		data["name"], data["weather"].([]interface{})[0].(map[string]interface{})["main"], data["main"].(map[string]interface{})["temp"], data["wind"].(map[string]interface{})["speed"], data["clouds"].(map[string]interface{})["all"], data["sys"].(map[string]interface{})["country"]); err != nil {
+		log.Fatal(err)
+	}
+
+	if _,err := db.Exec(`INSERT INRO weather (main, description) VALUES ($1, $2)`,
+		data["weather"].([]interface{})[0].(map[string]interface{})["main"], data["weather"].([]interface{})[0].(map[string]interface{})["description"]); err != nil {
+		log.Fatal(err)
+	}
+
+	if _,err := db.Exec(`INSERT INRO main (temp, pressure, humidity, temp_min, temp_max) VALUES ($1, $2, $3, $4, $5)`,
+		data["main"].(map[string]interface{})["temp"], data["main"].(map[string]interface{})["pressure"], data["main"].(map[string]interface{})["humidity"], data["main"].(map[string]interface{})["temp_min"], data["main"].(map[string]interface{})["temp_max"]); err != nil {
+		log.Fatal(err)
+	}
+
+	if _,err := db.Exec(`INSERT INRO wind (speed, deg) VALUES ($1, $2)`,
+		data["wind"].(map[string]interface{})["speed"], data["wind"].(map[string]interface{})["deg"]); err != nil {
+		log.Fatal(err)
+	}
+
+	if _,err := db.Exec(`INSERT INRO clouds (all) VALUES ($1)`,
+		data["clouds"].(map[string]interface{})["all"]); err != nil {
+		log.Fatal(err)
+	}
+
+	if _,err := db.Exec(`INSERT INRO sys (country, sunrise, sunset) VALUES ($1, $2, $3)`,
+		data["sys"].(map[string]interface{})["country"], data["sys"].(map[string]interface{})["sunrise"], data["sys"].(map[string]interface{})["sunset"]); err != nil {
+		log.Fatal(err)
+	}
+
+	// データを取得
+	rows, err := db.Query(`SELECT * FROM totalInfo`)
+	if err != nil {
+		log.Fatal(err)
+	}
+	
+
+
+	defer rows.Close()
+
+	for rows.Next() {
+		var id int
+		var name string
+		var weather string
+		var main string
+		var wind string
+		var clouds string
+		var sys string
+		if err := rows.Scan(&id, &name, &weather, &main, &wind, &clouds, &sys); err != nil {
+			log.Fatal(err)
+		}
+		fmt.Println(id, name, weather, main, wind, clouds, sys)
+	}
+}
