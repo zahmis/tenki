@@ -4,12 +4,11 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 
-	_ "github.com/lib/pq"
+	"tenki.com/tenki/ps"
 )
 
 func main() {
@@ -38,17 +37,59 @@ func main() {
 
     // HTTPレスポンスを読み込む
     defer resp.Body.Close()
-    body, err := ioutil.ReadAll(resp.Body)
-    if err != nil {
-        log.Fatal(err)
-    }
+
+ 
 
     // JSONをパース
-    var data map[string]interface{}
-    if err := json.Unmarshal(body, &data); err != nil {
-        log.Fatal(err)
-    }
+    var weatherData map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&weatherData); err != nil {
+		log.Fatal(err)
+	}
 
+	weather := ps.Weather{
+		Main: weatherData["weather"].([]interface{})[0].(map[string]interface{})["main"].(string),
+		Description: weatherData["weather"].([]interface{})[0].(map[string]interface{})["description"].(string),
+	}
+
+	main := ps.Main{
+		Temp: weatherData["main"].(map[string]interface{})["temp"].(float64),
+		Pressure: weatherData["main"].(map[string]interface{})["pressure"].(float64),
+		Humidity: weatherData["main"].(map[string]interface{})["humidity"].(float64),
+		TempMin: weatherData["main"].(map[string]interface{})["temp_min"].(float64),
+		TempMax: weatherData["main"].(map[string]interface{})["temp_max"].(float64),
+	}
+
+	wind := ps.Wind{
+		Speed: weatherData["wind"].(map[string]interface{})["speed"].(float64),
+		Deg: weatherData["wind"].(map[string]interface{})["deg"].(float64),
+	}
+
+	clouds := ps.Clouds{
+		All: weatherData["clouds"].(map[string]interface{})["all"].(float64),
+	}
+
+	sys := ps.Sys{
+		Country: weatherData["sys"].(map[string]interface{})["country"].(string),
+		Sunrise: weatherData["sys"].(map[string]interface{})["sunrise"].(float64),
+		Sunset: weatherData["sys"].(map[string]interface{})["sunset"].(float64),
+	}
+
+	totalInfo := ps.TotalInfo{
+		Name: weatherData["name"].(string),
+		Weather: weather,
+		Main: main,
+		Wind: wind,
+		Clouds: clouds,
+		Sys: sys,
+	}
+
+	fmt.Println(totalInfo)
+
+	// JSONをパース
+	var data map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		log.Fatal(err)
+	}
 
 	// 天気情報を表示
 	fmt.Println("都市名:", data["name"])
@@ -63,67 +104,7 @@ func main() {
 	fmt.Println("日の出:", data["sys"].(map[string]interface{})["sunrise"])
 	fmt.Println("日の入り:", data["sys"].(map[string]interface{})["sunset"])
 
-	type TotalInfo struct {
-		Name string `json:"name"`
-		Weather []struct {
-			Main string `json:"main"`
-			Description string `json:"description"`
-		} `json:"weather"`
-		Main struct {
-			Temp float64 `json:"temp"`
-			Pressure float64 `json:"pressure"`
-			Humidity float64 `json:"humidity"`
-			TempMin float64 `json:"temp_min"`
-			TempMax float64 `json:"temp_max"`
-		} `json:"main"`
-		Wind struct {
-			Speed float64 `json:"speed"`
-			Deg float64 `json:"deg"`
-		} `json:"wind"`
-		Clouds struct {
-			All float64 `json:"all"`
-		} `json:"clouds"`
-		Sys struct {
-			Country string `json:"country"`
-			Sunrise float64 `json:"sunrise"`
-			Sunset float64 `json:"sunset"`
-		} `json:"sys"`
-	}
-
-	type Weather struct {
-		Main string `json:"main"`
-		Description string `json:"description"`
-	}
-
-	type Main struct {
-		Temp float64 `json:"temp"`
-		Pressure float64 `json:"pressure"`
-		Humidity float64 `json:"humidity"`
-		TempMin float64 `json:"temp_min"`
-		TempMax float64 `json:"temp_max"`
-	}
-
-	type Wind struct {
-		Speed float64 `json:"speed"`
-		Deg float64 `json:"deg"`
-	}
-
-	type Clouds struct {
-		All float64 `json:"all"`
-	}
-
-	type Sys struct {
-		Country string `json:"country"`
-		Sunrise float64 `json:"sunrise"`
-		Sunset float64 `json:"sunset"`
-	}
-
-
-
-
-	//ユーザー名:パスワード@ホスト名:ポート番号/データベース名
-
-	connectStr := "user=sizmayosimaz dbname=tenki sslmode=disable"
+	connectStr := "user=sizmayosimaz dbname=tenki2 sslmode=disable"
 
 	db, err := sql.Open("postgres", connectStr)
 	if err != nil {
@@ -219,6 +200,7 @@ func main() {
 		data["sys"].(map[string]interface{})["country"], data["sys"].(map[string]interface{})["sunrise"], data["sys"].(map[string]interface{})["sunset"]); err != nil {
 		log.Fatal(err)
 	}
+
 
 	// データを取得
 	rows, err := db.Query(`SELECT * FROM totalInfo`)
