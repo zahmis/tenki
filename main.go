@@ -3,11 +3,13 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 
+	"tenki.com/tenki/internal"
 	"tenki.com/tenki/ps"
 )
 
@@ -15,7 +17,7 @@ func main() {
 	weatherApiToken := os.Getenv("WEATHER_API_TOKEN")
 
 	if weatherApiToken == "" {
-		log.Fatal("WEATHER_API_TOKEN is not set")
+		internal.ErrorCheck(errors.New("WEATHER_API_TOKEN is not set"))
 		return
 	}
 
@@ -24,16 +26,13 @@ func main() {
 
     // HTTP GETリクエストを作成
     req, err := http.NewRequest("GET", url, nil)
-    if err != nil {
-        log.Fatal(err)
-    }
+	internal.ErrorCheck(err)
+
 
     // HTTP GETリクエストを送信
     client := new(http.Client)
     resp, err := client.Do(req)
-    if err != nil {
-        log.Fatal(err)
-    }
+	internal.ErrorCheck(err)
 
     // HTTPレスポンスを読み込む
     defer resp.Body.Close()
@@ -43,7 +42,7 @@ func main() {
     // JSONをパース
     var weatherData map[string]interface{}
 	if err := json.NewDecoder(resp.Body).Decode(&weatherData); err != nil {
-		log.Fatal(err)
+		internal.ErrorCheck(err)
 	}
 
 	weather := ps.Weather{
@@ -91,6 +90,8 @@ func main() {
 		log.Fatal(err)
 	}
 
+	
+
 	// 天気情報を表示
 	fmt.Println("都市名:", data["name"])
 	fmt.Println("天気:", data["weather"].([]interface{})[0].(map[string]interface{})["main"])
@@ -107,9 +108,8 @@ func main() {
 	connectStr := "user=sizmayosimaz dbname=tenki2 sslmode=disable"
 
 	db, err := sql.Open("postgres", connectStr)
-	if err != nil {
-		log.Fatal(err)
-	}
+    internal.ErrorCheck(err)
+
 	defer db.Close()
 
 	// テーブルを作成
@@ -169,7 +169,6 @@ func main() {
 	}
 
 
-
 	// データを挿入
 	if _, err := db.Exec(`INSERT INTO weather (name, weather, main, wind, clouds, sys) VALUES ($1, $2, $3, $4, $5, $6)`,
 		data["name"], data["weather"].([]interface{})[0].(map[string]interface{})["main"], data["main"].(map[string]interface{})["temp"], data["wind"].(map[string]interface{})["speed"], data["clouds"].(map[string]interface{})["all"], data["sys"].(map[string]interface{})["country"]); err != nil {
@@ -204,11 +203,7 @@ func main() {
 
 	// データを取得
 	rows, err := db.Query(`SELECT * FROM totalInfo`)
-	if err != nil {
-		log.Fatal(err)
-	}
-	
-
+	internal.ErrorCheck(err)
 
 	defer rows.Close()
 

@@ -1,6 +1,4 @@
 package ps
-
-
 type TotalInfo struct {
 	Name string `json:"name"`
 	Weather Weather`json:"weather"`
